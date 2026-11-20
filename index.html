@@ -516,15 +516,27 @@ body[data-font="condensada"] { --heading: "Arial Narrow", "Franklin Gothic Mediu
   --panel: color-mix(in srgb, var(--brand) 32%, #172327);
 }
 .product-image {
+  --photo-fade-inline: 15%;
+  --photo-fade-block: 18%;
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
   max-height: 16rem;
   object-fit: contain;
-  border-radius: .35rem;
+  margin-inline: auto;
   margin-top: .45rem;
+  mask-image: radial-gradient(ellipse farthest-corner, #000 56%, transparent 100%);
 }
-[data-media="vitrine"] .product-image { aspect-ratio: 3 / 2; object-fit: cover; }
+@supports (mask-composite: intersect) {
+  .product-image {
+    mask-image:
+      linear-gradient(90deg, transparent, #000 var(--photo-fade-inline), #000 calc(100% - var(--photo-fade-inline)), transparent),
+      linear-gradient(180deg, transparent, #000 var(--photo-fade-block), #000 calc(100% - var(--photo-fade-block)), transparent);
+    mask-composite: intersect;
+  }
+}
+[data-media="vitrine"] .product-image { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
 
 @media (min-width: 44rem) {
   [data-section="assimetrica"] .category {
@@ -1063,9 +1075,10 @@ body.showcase {
   background: transparent;
 }
 [data-showcase-media="fotografica"] .showcase-feature .product-image {
+  --photo-fade-inline: 13%;
+  --photo-fade-block: 21%;
   aspect-ratio: 4 / 3;
   max-height: 35rem;
-  mask-image: linear-gradient(180deg, transparent, #000 13%, #000 78%, transparent);
 }
 [data-showcase-media="fotografica"] .showcase-feature figcaption {
   position: absolute;
@@ -1150,11 +1163,11 @@ body.showcase {
   color: var(--show-text);
 }
 [data-showcase-media="fotografica"] .showcase-catalog .product > img {
+  width: 100%;
   aspect-ratio: 16 / 10;
   object-fit: cover;
   max-height: none;
   margin: 0;
-  border-radius: .68rem .3rem .68rem .3rem;
 }
 [data-showcase-media="fotografica"] .showcase-catalog .product-summary {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1221,7 +1234,8 @@ body.showcase {
     margin: 0;
   }
   [data-showcase-media="fotografica"] .showcase-feature .product-image {
-    mask-image: radial-gradient(ellipse at 51% 51%, #000 45%, transparent 77%);
+    --photo-fade-inline: 18%;
+    --photo-fade-block: 24%;
   }
 }
 
