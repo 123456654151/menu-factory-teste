@@ -1264,7 +1264,7 @@ body.showcase {
   }
 }
 
-.cart-add, .cart-launch, #cart-copy {
+.cart-add, .cart-launch, #cart-copy, #cart-whatsapp {
   background: var(--show-gold, #ff9a72);
   color: #271a20;
   border: 1px solid transparent;
@@ -1290,6 +1290,9 @@ body.showcase {
 
 .showcase:has(.cart-launch:not([hidden])) {
   padding-block-end: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+html:has(.cart-launch:not([hidden])) {
+  scroll-padding-block-end: calc(5rem + env(safe-area-inset-bottom, 0px));
 }
 .cart-launch {
   position: fixed;
@@ -1360,7 +1363,8 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   font: 800 1.45rem/1.2 system-ui, sans-serif;
 }
 .cart-dialog h2::after { content: none; }
-.cart-dialog button:not(#cart-copy) {
+.cart-dialog button:not(#cart-copy):not([type="submit"]),
+#cart-whatsapp:not([hidden]) + #cart-copy {
   border: 1px solid var(--show-rule);
   border-radius: .45rem;
   background: var(--show-panel);
@@ -1380,6 +1384,38 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
 .cart-item-heading strong:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .cart-item-options, #cart-copy-status { color: var(--show-muted); font-size: .83rem; }
 .cart-quantity { display: flex; align-items: center; gap: .4rem; }
+.cart-item-actions, .cart-edit-actions { display: flex; gap: .38rem; flex-wrap: wrap; }
+.cart-item-controls { flex-wrap: wrap; row-gap: .5rem; }
+.cart-edit {
+  display: grid;
+  gap: .55rem;
+  padding: .6rem;
+  border: 1px solid var(--show-rule);
+  border-radius: .55rem;
+  background: var(--show-panel);
+}
+.cart-edit fieldset { min-width: 0; padding: .25rem .45rem; border: 1px solid var(--show-rule); }
+.cart-edit legend { padding-inline: .25rem; font-size: .83rem; font-weight: 700; }
+.cart-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 44px;
+  gap: .45rem;
+  align-items: center;
+  padding-block: .2rem;
+  font-size: .86rem;
+}
+.cart-choice input { accent-color: var(--show-gold, #ff9a72); }
+.cart-edit-total, .cart-edit-error { font-size: .84rem; }
+.cart-edit-error:empty { display: none; }
+.cart-edit-actions { justify-content: end; }
+.cart-dialog .cart-edit button[type="submit"] {
+  background: var(--show-gold, #ff9a72);
+  color: #271a20;
+  border: 1px solid transparent;
+  border-radius: .45rem;
+  font-weight: 750;
+}
 .cart-quantity button { min-width: 44px; }
 .cart-quantity span { min-width: 1.45rem; text-align: center; font-variant-numeric: tabular-nums; }
 .cart-undo {
@@ -1399,6 +1435,15 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
 }
 .cart-subtotal { font-size: 1.05rem; }
+#cart-copy-status:empty { display: none; }
+#cart-whatsapp {
+  display: grid;
+  min-height: 44px;
+  padding: .4rem .7rem;
+  place-items: center;
+  text-align: center;
+  text-decoration: none;
+}
 #cart-copy-fallback {
   width: 100%;
   color: inherit;
@@ -1489,7 +1534,7 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   <span>Ver carrinho <span id="cart-count" class="cart-count"></span></span>
   <strong id="cart-launch-total"></strong>
 </button>
-<dialog class="cart-dialog" id="cart-dialog" aria-labelledby="cart-title" data-cart-key="brasa-de-esquina/cardapio">
+<dialog class="cart-dialog" id="cart-dialog" aria-labelledby="cart-title" data-cart-key="brasa-de-esquina/cardapio" data-whatsapp="">
   <div class="cart-header">
     <h2 id="cart-title">Seu carrinho</h2>
     <button type="button" id="cart-close" autofocus>Fechar</button>
@@ -1504,6 +1549,7 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   </div>
   <div class="cart-footer">
     <p class="cart-subtotal">Subtotal <strong id="cart-subtotal" aria-live="polite"></strong></p>
+    <a id="cart-whatsapp" target="_blank" rel="noopener noreferrer" hidden>Abrir no WhatsApp</a>
     <button type="button" id="cart-copy">Copiar resumo</button>
     <p id="cart-copy-status" role="status">Revise sua seleção e copie o resumo para compartilhar.</p>
     <textarea id="cart-copy-fallback" aria-label="Resumo do carrinho, selecione para copiar" rows="4" readonly hidden></textarea>
@@ -1587,6 +1633,7 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   const undoButton = dialog.querySelector("#cart-undo-button");
   const subtotalLabel = dialog.querySelector("#cart-subtotal");
   const copy = dialog.querySelector("#cart-copy");
+  const whatsapp = dialog.querySelector("#cart-whatsapp");
   const status = dialog.querySelector("#cart-copy-status");
   const fallback = dialog.querySelector("#cart-copy-fallback");
   const guidance = "Revise sua seleção e copie o resumo para compartilhar.";
@@ -1597,6 +1644,7 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   let noticeTimer;
   let lastAdd;
   let removed;
+  let editing;
 
   function el(tag, text, className) {
     const node = document.createElement(tag);
@@ -1671,6 +1719,77 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
     return button;
   }
 
+  function summaryText() {
+    const name = document.querySelector(".showcase-brand").textContent.trim();
+    const summary = lines.map(line => {
+      const { name: product, labels, total } = describe(line);
+      return line.quantity + " × " + product + (labels.length ? " (" + labels.join(", ") + ")" : "") +
+        " — " + money.format(total / 100);
+    });
+    return ["Seleção — " + name, ...summary, "Subtotal: " + subtotalLabel.textContent].join("\n");
+  }
+
+  function editOptions(line, index) {
+    const product = products.get(line.product);
+    const form = el("form", undefined, "cart-edit");
+    for (const [kind, title, available] of [["variant", "Variação", product.variants],
+      ["addition", "Adicionais", product.additions]]) {
+      if (!available.size) continue;
+      const group = el("fieldset");
+      group.append(el("legend", title));
+      for (const [id, option] of available) {
+        const label = el("label", undefined, "cart-choice");
+        const field = el("input");
+        field.type = kind === "variant" ? "radio" : "checkbox";
+        field.name = kind;
+        field.value = id;
+        field.checked = kind === "variant" ? editing.draft.variant === id : editing.draft.additions.includes(id);
+        label.append(field, el("span", option.name), el("strong", money.format(option.cents / 100)));
+        group.append(label);
+      }
+      form.append(group);
+    }
+    const estimate = el("p", undefined, "cart-edit-total");
+    estimate.setAttribute("role", "status");
+    const error = el("p", undefined, "cart-edit-error");
+    error.setAttribute("role", "alert");
+    const actions = el("div", undefined, "cart-edit-actions");
+    const save = el("button", "Salvar opções");
+    save.type = "submit";
+    const cancel = el("button", "Cancelar");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { editing = null; render(index, "edit"); });
+    actions.append(cancel, save);
+    form.append(estimate, actions, error);
+    function updateDraft() {
+      const values = new FormData(form);
+      editing.draft = validate({ ...line, variant: values.get("variant"), additions: values.getAll("addition") });
+      if (editing.draft) estimate.textContent = "Total deste item: " + money.format(describe(editing.draft).total / 100);
+    }
+    form.addEventListener("change", updateDraft);
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      updateDraft();
+      const updated = editing.draft;
+      if (!updated) return;
+      const match = lines.find(other => other !== line && signature(other) === signature(updated));
+      if (match && match.quantity + updated.quantity > maxQuantity) {
+        error.textContent = "Esta combinação ultrapassa o limite de quantidade.";
+        return;
+      }
+      if (match) {
+        match.quantity += updated.quantity;
+        lines.splice(index, 1);
+      } else {
+        lines[index] = updated;
+      }
+      editing = null;
+      render(match ? lines.indexOf(match) : index, "edit");
+    });
+    updateDraft();
+    return form;
+  }
+
   function render(focusIndex, focusAction) {
     let count = 0;
     let subtotal = 0;
@@ -1686,6 +1805,11 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
       row.append(heading);
       if (labels.length) row.append(el("p", labels.join(" · "), "cart-item-options"));
 
+      if (editing?.line === line) {
+        row.append(editOptions(line, index));
+        items.append(row);
+        continue;
+      }
       const controls = el("div", undefined, "cart-item-controls");
       const quantity = el("div", undefined, "cart-quantity");
       const itemName = labels.length ? name + " (" + labels.join(", ") + ")" : name;
@@ -1704,7 +1828,16 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
       amount.setAttribute("aria-label", "Quantidade: " + line.quantity);
       quantity.append(quantityButton("−", "Diminuir quantidade de " + itemName, "minus", false, decrement),
         amount, quantityButton("+", "Aumentar quantidade de " + itemName, "plus", line.quantity === maxQuantity, increment));
-      controls.append(quantity, quantityButton("Remover", "Remover " + itemName, "remove", false, remove));
+      const rowActions = el("div", undefined, "cart-item-actions");
+      const product = products.get(line.product);
+      if (product.variants.size || product.additions.size) {
+        rowActions.append(quantityButton("Editar", "Editar opções de " + itemName, "edit", false, () => {
+          editing = { line, draft: line };
+          render(index, "option");
+        }));
+      }
+      rowActions.append(quantityButton("Remover", "Remover " + itemName, "remove", false, remove));
+      controls.append(quantity, rowActions);
       row.append(controls);
       items.append(row);
     }
@@ -1717,12 +1850,22 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
     empty.hidden = count > 0;
     undo.hidden = !removed;
     undoStatus.textContent = removed ? describe(removed.line).name + " removido." : "";
-    copy.disabled = count === 0;
+    copy.disabled = count === 0 || Boolean(editing);
+    copy.hidden = Boolean(editing);
+    const number = dialog.dataset.whatsapp;
+    const link = count && !editing && number ? "https://wa.me/" + number + "?text=" + encodeURIComponent(summaryText()) : "";
+    whatsapp.hidden = !link || link.length > 4000;
+    if (whatsapp.hidden) whatsapp.removeAttribute("href");
+    else whatsapp.href = link;
     fallback.hidden = true;
-    status.textContent = count ? guidance : "";
+    status.textContent = editing ? "" :
+      !whatsapp.hidden ? "Revise e envie a mensagem no WhatsApp." :
+      count ? (link ? "Copie o resumo para compartilhar esta seleção longa." : guidance) : "";
     if (focusIndex !== undefined) {
       const row = items.children[Math.min(focusIndex, lines.length - 1)];
-      const control = row?.querySelector('[data-cart-action="' + focusAction + '"]:not(:disabled)');
+      const control = focusAction === "option" ?
+        (row?.querySelector(".cart-edit input:checked") || row?.querySelector(".cart-edit input")) :
+        row?.querySelector('[data-cart-action="' + focusAction + '"]:not(:disabled)');
       (control || row?.querySelector("button:not(:disabled)") || (removed ? undoButton : close)).focus();
     }
     try { localStorage.setItem(storageKey, JSON.stringify(lines)); } catch {}
@@ -1762,24 +1905,25 @@ body:has(.cart-dialog[open]) { overflow: hidden; }
   undoButton.addEventListener("click", () => {
     if (!removed) return;
     const { line, index } = removed;
-    lines.splice(index, 0, line);
+    const match = lines.find(other => signature(other) === signature(line));
+    if (match && match.quantity + line.quantity > maxQuantity) {
+      undoStatus.textContent = "Não é possível restaurar: esta combinação atingiu o limite de quantidade.";
+      return;
+    }
+    if (match) match.quantity += line.quantity;
+    else lines.splice(index, 0, line);
     removed = null;
-    render(index, "plus");
+    render(match ? lines.indexOf(match) : index, "plus");
   });
   dialog.addEventListener("close", () => {
     removed = null;
+    editing = null;
     if (!launch.hidden) launch.focus();
     else if (lastAdd?.getClientRects().length) lastAdd.focus();
     else document.querySelector("#cardapio")?.focus();
   });
   copy.addEventListener("click", async () => {
-    const name = document.querySelector(".showcase-brand").textContent.trim();
-    const summary = lines.map(line => {
-      const { name: product, labels, total } = describe(line);
-      return line.quantity + " × " + product + (labels.length ? " (" + labels.join(", ") + ")" : "") +
-        " — " + money.format(total / 100);
-    });
-    const text = ["Seleção — " + name, ...summary, "Subtotal: " + subtotalLabel.textContent].join("\n");
+    const text = summaryText();
     try {
       await navigator.clipboard.writeText(text);
       status.textContent = "Resumo copiado.";
